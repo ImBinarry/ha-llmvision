@@ -1736,6 +1736,24 @@ async def test_openai_make_request_and_validate_paths(coverage_hass):
 
 
 @pytest.mark.anyio
+async def test_openai_openrouter_request_does_not_print_api_key(capsys, coverage_hass):
+    """Regression test for #754: never write credentials to stdout/stderr."""
+    api_key = "sk-or-v1-super-secret-test-key"
+    provider = OpenAI(coverage_hass, api_key, "gpt-4")
+    provider.endpoint = "https://openrouter.ai/api/v1/chat/completions"
+    provider._post = AsyncMock(return_value=make_openai_chat_completion_response())
+
+    assert await provider._make_request({"messages": [{"content": "private"}]}) == "ok"
+
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+    assert api_key not in output
+    assert "Authorization" not in output
+    assert "Bearer" not in output
+    assert "[OpenRouter DEBUG]" not in output
+
+
+@pytest.mark.anyio
 async def test_azure_make_request_text_prepare_and_validate_paths(coverage_hass):
     provider = AzureOpenAI(
         coverage_hass,
@@ -2131,8 +2149,7 @@ async def test_openai_specific_missing_branches(monkeypatch, coverage_hass):
 
     provider.endpoint = "https://openrouter.ai/api/v1/chat/completions"
     provider._post = AsyncMock(return_value=make_openai_chat_completion_response())
-    with patch("builtins.print"):
-        assert await provider._make_request({"x": 1}) == "ok"
+    assert await provider._make_request({"x": 1}) == "ok"
 
     provider.endpoint = 123
     with pytest.raises(ServiceValidationError):
